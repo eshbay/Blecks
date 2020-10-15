@@ -1,13 +1,8 @@
 import random
+import sys
 import time as tm
 import numpy as np
 
-npc_locations = {}
-existing_items = []
-messages = []
-existing_doodads = []
-
-map_array = np.zeros((50, 50))
 
 def Reverse(lst): 
     return [ele for ele in reversed(lst)]
@@ -16,6 +11,372 @@ def distance_between(a_xy, b_xy):
     distance = abs(a_xy[0] - b_xy[0]) + abs(a_xy[1] - b_xy[1]) - 1
     return distance
 
+class Game:
+    def __init__(self):
+        self.npc_locations = {}
+        self.existing_items = []
+        self.messages = []
+        self.existing_doodads = []
+        self.map_array = np.zeros((50, 50))
+        self.day = 0
+        self.time = 0
+        self.g = MapGrid(15, 10)
+        self.walls = []
+
+    def npc_interactions(self, target):
+        if target.is_stunned == True:
+                    self.messages.append(target.name + ': "zzZ"')
+                    self.npc_turn()
+        elif target.name == 'the guard':
+            self.messages.append(f"{target.name}: keep movin")
+            self.npc_turn()
+        elif target.name == 'tamel':
+            if self.blecks not in target.enemies and target.is_stunned == False:
+                self.messages.append(target.name + ': "welcome to town, blecks"')
+                target.emoji = '😀'
+                self.npc_turn()
+            
+            else:
+                if target.subtype == 'civilian' and target.is_stunned == False:
+                    if target.is_aggressive:
+                        self.messages.append(target.name + ': I\'ll frick you right up!')
+                        target.emoji = '🤬'
+                    else:
+                        self.messages.append(target.name + ': "get the heck right away from me!"')
+                        target.emoji = '😰'
+                elif target.is_stunned == True:
+                    self.messages.append(target.name + ': "zzZ"')
+
+                self.npc_turn()
+        else:
+            if target.subtype == 'civilian':
+                self.messages.append(target.name + ': "excuse me"')
+                target.emoji = '🤨'
+            self.npc_turn()
+
+    def doodad_line(self, origin_xy, dir_length, axis, is_obstructive, emoji, name):
+        if axis == 'x':
+            i = origin_xy[0]
+            if dir_length > 0:
+                while i < dir_length + origin_xy[0]:
+                    name = Doodad(i, origin_xy[1], emoji, name, is_obstructive, game)
+                    i += 1
+            elif dir_length < 0:
+                while i > dir_length + origin_xy[0]:
+                    self.walls.append((i, origin_xy[1]))
+                    i -= 1
+        elif axis == 'y':
+            i = origin_xy[1]
+            if dir_length > 0:
+                while i < dir_length + origin_xy[1]:
+                    self.walls.append((origin_xy[0], i))
+                    i += 1
+            elif dir_length < 0:
+                while i > dir_length + origin_xy[1]:
+                    self.walls.append((origin_xy[0], i))
+                    i -= 1
+
+    def build_wall(self, origin_xy, dir_length, axis):
+        if axis == 'x':
+            i = origin_xy[0]
+            if dir_length > 0:
+                while i < dir_length + origin_xy[0]:
+                    self.walls.append((i, origin_xy[1]))
+                    i += 1
+            elif dir_length < 0:
+                while i > dir_length + origin_xy[0]:
+                    self.walls.append((i, origin_xy[1]))
+                    i -= 1
+        elif axis == 'y':
+            i = origin_xy[1]
+            if dir_length > 0:
+                while i < dir_length + origin_xy[1]:
+                    self.walls.append((origin_xy[0], i))
+                    i += 1
+            elif dir_length < 0:
+                while i > dir_length + origin_xy[1]:
+                    self.walls.append((origin_xy[0], i))
+                    i -= 1
+
+    def place_objects(self):
+        paper = Item(-1, -1, 'paper', self)
+        self.watch = Item(-1, -1, 'watch', self, 0, '⌚️')
+        pen = Item(-1, -1, 'pen', self, 1, '🖋')
+        notepad = Item(-1, -1, 'notepad', self, 0, '🗒')
+        knife = Item(-1, -1, 'knife', self, 3, '🔪')
+        taser = Item(-1, -1, 'taser', self, 1, '🔫')
+        taser2 = Item(-1, -1, 'taser', self, 1, '🔫')
+        key1 = Item(-1, -1, 'key', self, 1, '🗝')
+        amphora = Item(3, 1, 'amphora', self, 0, '🏺', inventory=[pen, notepad, knife])
+
+        self.blecks = Person('blecks', self,
+            subtype='player', x=1, y=1, hp=10,
+            speed=20, emoji="🙎",
+            inventory=[self.watch, key1], vision=4)
+        tamel = Person('tamel', self, subtype='civilian', x=2, y=5, hp=10, speed=15)
+        jimben = Person('jimben', self, subtype='civilian', x=7, y=7, hp=10, speed=25, is_aggressive=True, inventory=[knife])
+
+        guard1 = Person('the guard', self, subtype='guard', x=1, y=8, hp=10, speed=25, is_aggressive=True, inventory=[taser, knife], emoji='💂🏼‍♀️', vision = 8)
+
+        ##blecks house 
+        bed = Item(1, 1, 'bed', self, 0, '🛏')
+        self.build_wall((4, 0), 4, 'y')
+        self.build_wall((2, 3), 2, 'x')
+        door1 = Item(1, 3, 'door', self, 0, '🚪')
+
+        self.build_wall((14, 0), 10, 'y')
+        self.build_wall((0, 0), 50, 'x')
+        self.build_wall((0, 0), 15, 'y')
+        self.build_wall((0, 9), 50, 'x')
+
+    def print_toolbar(self):
+        if self.time >= 0 and self.time < 200:
+            time_emoji = '🌄'
+        if self.time < 1200 and self.time >= 200:
+            time_emoji = '☀️'
+        if self.time >= 1200 and self.time < 1400:
+            time_emoji = '🌅'
+        if self.time >= 1400:
+            time_emoji = '🌙'
+        if self.watch in self.blecks.inventory:
+            contents = f"{time_emoji} Time: {int(self.time)}; Day: {self.day}; HP: {self.blecks.hp}; Energy: {int(self.blecks.energy_modifier * 100)}%; Gold: {self.blecks.gold};"
+        else:
+            contents = f"{time_emoji} Day: {self.day}; HP: {self.blecks.hp}; Gold: {self.blecks.gold};"
+        print(contents)
+
+    def npc_turn(self):
+        self.time += self.blecks.speed / self.blecks.energy_modifier
+        
+        if self.time > 2400:
+            self.time -= 2400
+            self.day += 1
+        for x in Person._registry:
+            if x.is_alive and x.name != 'blecks':
+                for i in range(int(self.blecks.speed / self.blecks.energy_modifier)):
+                    if x.turn_clock == x.speed:
+                        x.turn_clock = 0
+                        self.npc_take_turn(x)
+                    else:
+                        x.turn_clock += 1
+        self.player_turn(self.messages)
+
+    def npc_take_turn(self, npc):
+        if npc.is_stunned == True:
+            if npc.stun_timer > 0:
+                npc.stun_timer -=1
+                if npc.subtype == 'civilian' and npc.emoji != '⛓':
+                    npc.emoji = '😵'
+            else:
+                npc.is_stunned = False
+        
+        elif len(npc.guard_targets) > 0:
+            if self.blecks in npc.guard_targets:
+                i = self.blecks
+            else:
+                i = Reverse(npc.guard_targets)[0]
+                
+            i_xy = (i.x, i.y)
+            npc_xy = (npc.x, npc.y)
+            distance = distance_between(i_xy, npc_xy)
+            if distance < 1.0 and (i.is_stunned == True or 'taser' not in [item.name for item in npc.inventory]):
+                self.messages = []
+                i.emoji = '⛓'
+                i.is_stunned = True
+                i.stun_timer = 100
+                
+                draw_grid(g)
+                if i.name == 'blecks':
+                    input(f"{npc.name}: you're under arrest!\n you spend thr rest of your life in prison..")
+                npc.guard_targets.remove(i)
+                
+            elif i.y == npc.y and i.is_stunned == False:
+                if (i.x - npc.x) >= 1 and (i.x - npc.x) <= 3:
+                    dir = 'd'
+                    npc.tase(dir)
+                elif (i.x - npc.x) <= -1 and (i.x - npc.x) >= -3:
+                    dir = 'a'
+                    npc.tase(dir)
+                    
+            elif i.x == npc.x and i.is_stunned == False:
+                if i.y - npc.y >= 1 and i.y - npc.y <= 3:
+                    dir = 's'
+                    npc.tase(dir)
+                elif i.y - npc.y <= -1 and i.y - npc.y >= -3:
+                    dir = 'w'
+                    npc.tase(dir)
+                
+            else:
+                npc.move_toward((i.x, i.y))
+                                    
+        elif len(npc.enemies) > 0:
+            for i in reversed(npc.enemies):
+                distance = distance_between((i.x, i.y), (npc.x, npc.y))
+                if distance <= npc.vision:
+                    if npc.is_aggressive:
+                        if distance >= 1.0:
+                            self.messages.append(f"{npc.name} moves toward you!")
+                            if npc.subtype == 'civilian':
+                                npc.emoji = '😠'
+                            npc.move_toward((i.x, i.y))
+                            break
+                        else:
+                            weapon_list = []
+                            for object in npc.inventory:
+                                weapon_list.append((object, object.base_damage))
+        
+                            for (key, value) in weapon_list:
+                                if value == max([g[1] for g in weapon_list]):
+                                    weapon = key
+        
+                                    npc.hit(i, weapon)
+                                    break
+                    else:
+                        if i.name == 'blecks':
+                            message = f"{npc.name} runs from you"
+                        else:
+                            message = f"{npc.name} runs from {i.name}"
+                        if message not in self.messages:
+                            
+                                self.messages.append(message)
+                        if npc.subtype == 'civilian':
+                            npc.emoji = '😰'
+                            npc.run_from((i.x, i.y))
+                else:
+                    npc.wander()
+        else:
+            if npc in self.npc_locations.keys():
+                npc.wander()
+
+    def player_turn(self, message=''):
+        self.draw_grid(self.g)
+        print(str(message) + '\n')
+        self.messages = []
+        player_choice = input('?')
+        self.draw_grid(self.g)
+        if self.blecks.is_stunned == True:
+            if self.blecks.stun_timer > 0:
+                self.messages.append('you are stunned..')
+                self.blecks.stun_timer -=1
+                self.npc_turn()
+            else:
+                self.blecks.is_stunned = False
+                self.messages.append('you feel in control again')
+                self.npc_turn()
+             
+        elif player_choice == '?':
+            print('wasd = move; e = inv; q = pick up')
+            self.player_turn()
+        elif player_choice == 'a':
+            self.blecks.move(player_choice)
+        elif player_choice == 'd':
+            self.blecks.move(player_choice)
+        elif player_choice == 'w':
+            self.blecks.move(player_choice)
+        elif player_choice == 's':
+            self.blecks.move(player_choice)
+        elif player_choice == 'e':
+            self.blecks.inventory_actions()
+        elif player_choice == 'q':
+            i = 0
+            for x in existing_items:
+                if (self.blecks.x, self.blecks.y) == x[1]:
+                    if x[0].name == 'amphora':
+                        options = []
+                        i = 1
+                        for t in x[0].inventory:
+                            print(f"{str(i)}. {t.name} {t.emoji}")
+                            i += 1
+                        player_choice = input('x. back')
+                        if player_choice.isnumeric() == True and int(player_choice) <= len(x[0].inventory): 
+                            chosen_item = x[0].inventory[(int(player_choice) - 1)]
+                            self.blecks.inventory.append(chosen_item)
+                            x[0].inventory.remove(chosen_item)
+                            self.messages.append(f"you take the {chosen_item.name}")
+                            npc_turn()
+                        elif player_choice == 'x':
+                            player_turn()
+                        else:
+                            player_turn('invalid command')
+                        
+                            
+                            
+                    elif x[0].name != 'door' and x[0].name != 'bed':
+                        grabbed_item = x[0].name
+                        self.blecks.inventory.append(x[0])
+                        i += 1
+                        existing_items.remove(x)
+                        if i > 0:
+                            self.messages.append(f"{grabbed_item} grabbed")
+                            npc_turn()
+                            break
+                        else:
+                            player_turn('nothing to pick up here ')
+                            break
+                    else:
+                        self.messages.append('can\'t pick that up')
+                        player_turn(self.messages)
+        elif player_choice == 'dt':
+            target = input('distance to what?')
+            for x, y in npc_locations.items():
+                if target == x.name:
+                    distance = distance_between((self.blecks.x, self.blecks.y), y)
+                    player_turn(f"{distance} away.")
+                    break
+
+
+        else:
+            player_turn('invalid command')
+
+    def draw_grid(self, graph, width=1):
+        clear() 
+        self.print_toolbar()
+        
+        y_vision = range((self.blecks.y - self.blecks.vision), (self.blecks.y + self.blecks.vision))
+        
+        for y in y_vision:
+            for x in range((self.blecks.x - 8), (self.blecks.x + 8)):
+                if (x, y) in self.walls:
+                    print("%%-%ds" % width % '▪️', end="")
+                elif (x, y) == (self.blecks.x, self.blecks.y):
+                    print("%%-%ds" % width % self.blecks.emoji, end="")
+                elif (x, y) in self.npc_locations.values():
+                    for p, loc in self.npc_locations.items():
+                        if loc == (x, y):
+                            print("%%-%ds" % width % p.emoji, end="")
+                elif (x, y) in (self.get_item_locations()):
+                    for (item, loc) in self.existing_items:
+                        if (x, y) == loc:
+                            print("%%-%ds" % width % item.emoji, end="")
+                            break
+
+                else:
+                    print("%%-%ds" % width % '◾️', end="")
+
+            print()
+
+    def get_item_locations(self):
+        locations = []
+        for x in self.existing_items:
+            locations.append(x[1])
+        return locations
+
+    def npc_receive_item(self, target, item):
+        if target.name == 'tamel':
+            if (str(item)) == 'dildo':
+                self.messages.append(f"{target.name}: oh I been needin one of those ;)")
+            else:
+                self.messages.append(f"{target.name}: useless")
+        
+        
+        elif target.subtype == 'guard':
+            message = input(f"{target.name}: sick a bribe! who should i arrest?")
+            for x in self.npc_locations.keys():
+                if x.name == message:
+                    target.guard_targets.append(x)
+                    self.messages.append(f"{target.name}: on it.")
+        else:
+            self.messages.append(f"{target.name}: a {item.name}, wow. thanks for it")
+        npc_turn()
 
 class MapGrid:
     def __init__(self, width, height):
@@ -23,19 +384,19 @@ class MapGrid:
         self.height = height
 
 class Doodad:
-    def __init__(self, x, y, is_obstructive=False, emoji, name):
+    def __init__(self, x, y, emoji, name, game, is_obstructive=False):
         self.name = name
         self.x = x
         self.y = y
         self.is_obstructive = is_obstructive
         self.emoji = emoji
-        existing_doodads.append((self, (self.x, self.y)))
+        game.existing_doodads.append((self, (self.x, self.y)))
 
 
 class Item:
     instances = []
 
-    def __init__(self, x, y, name, base_damage=1, emoji='ℹ️', is_locked=False, inventory=[]):
+    def __init__(self, x, y, name, game, base_damage=1, emoji='ℹ️', is_locked=False, inventory=[]):
         self.name = str(name)
         self.emoji = emoji
         self.x = x
@@ -44,135 +405,19 @@ class Item:
         self.is_locked = is_locked
         self.base_damage = base_damage
         self.in_possession = False
-        existing_items.append((self, (self.x, self.y)))
+        self.game = game
+        self.game.existing_items.append((self, (self.x, self.y)))
         self.__class__.instances.append(self)
 
 
-paper = Item(-1, -1, 'paper')
-watch = Item(-1, -1, 'watch', 0, '⌚️')
 
-g = MapGrid(15, 10)
-walls = []
-day = 0
-time = 0
-
-
-def draw_grid(graph, width=1):
-    global time
-    clear() 
-    print_toolbar()
-    
-    y_vision = range((blecks.y - blecks.vision), (blecks.y + blecks.vision))
-    
-    for y in y_vision:
-        for x in range((blecks.x - 8), (blecks.x + 8)):
-            if (x, y) in walls:
-                print("%%-%ds" % width % '▪️', end="")
-            elif (x, y) == (blecks.x, blecks.y):
-                print("%%-%ds" % width % blecks.emoji, end="")
-            elif (x, y) in npc_locations.values():
-                for p, loc in npc_locations.items():
-                    if loc == (x, y):
-                        print("%%-%ds" % width % p.emoji, end="")
-            elif (x, y) in (get_item_locations()):
-                for (item, loc) in existing_items:
-                    if (x, y) == loc:
-                        print("%%-%ds" % width % item.emoji, end="")
-                        break
-
-            else:
-                print("%%-%ds" % width % '◾️', end="")
-
-        print()
-
-
-def build_wall(origin_xy, dir_length, axis):
-    global walls
-    if axis == 'x':
-        i = origin_xy[0]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[0]:
-                walls.append((i, origin_xy[1]))
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[0]:
-                walls.append((i, origin_xy[1]))
-                i -= 1
-    elif axis == 'y':
-        i = origin_xy[1]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i -= 1
-
-def doodad_line(origin_xy, dir_length, axis, is_obstructive, emoji, name):
-    if axis == 'x':
-        i = origin_xy[0]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[0]:
-                name = Doodad(i, origin_xy[1], is_obstructive, emoji, name))
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[0]:
-                walls.append((i, origin_xy[1]))
-                i -= 1
-    elif axis == 'y':
-        i = origin_xy[1]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i -= 1
 
 def clear():
     print('\n')
 
 
-def get_item_locations():
-    global existing_items
-    locations = []
-    for x in existing_items:
-        locations.append(x[1])
-    return locations
 
 
-def npc_interactions(target):
-    if target.is_stunned == True:
-                messages.append(target.name + ': "zzZ"')
-                npc_turn()
-    elif target.name == 'the guard':
-        messages.append(f"{target.name}: keep movin")
-        npc_turn()
-    elif target.name == 'tamel':
-        if blecks not in target.enemies and target.is_stunned == False:
-            messages.append(target.name + ': "welcome to town, blecks"')
-            target.emoji = '😀'
-            npc_turn()
-        
-        else:
-            if target.subtype == 'civilian' and target.is_stunned == False:
-                if target.is_aggressive:
-                    messages.append(target.name + ': I\'ll frick you right up!')
-                    target.emoji = '🤬'
-                else:
-                    messages.append(target.name + ': "get the heck right away from me!"')
-                    target.emoji = '😰'
-            elif target.is_stunned == True:
-                messages.append(target.name + ': "zzZ"')
-
-            npc_turn()
-    else:
-        if target.subtype == 'civilian':
-            messages.append(target.name + ': "excuse me"')
-            target.emoji = '🤨'
-        npc_turn()
 
 
 def message(content):
@@ -188,9 +433,10 @@ def input_message(content):
 class Person:
     _registry = []
 
-    def __init__(self, name, subtype='civilian',
+    def __init__(self, name, game, subtype='civilian',
                  x=1, y=1, hp=10, speed=10, emoji='😐', is_aggressive=False, inventory=[], vision=5):
         self.name = str(name)
+        self.game = game
         self.emoji = emoji
         self.subtype = subtype
         self._registry.append(self)
@@ -213,12 +459,9 @@ class Person:
         self.is_stunned = False
         self.stun_timer = 0
         if self.name != 'blecks':
-            npc_locations[self] = (self.x, self.y)
+            self.game.npc_locations[self] = (self.x, self.y)
 
     def move(self, direction):
-        global messages
-        global time
-        global g
         if direction == 'd':
             destination = (self.x + 1, self.y)
         elif direction == 'a':
@@ -227,58 +470,58 @@ class Person:
             destination = (self.x, self.y - 1)
         elif direction == 's':
             destination = (self.x, self.y + 1)
-        if destination in walls:
+        if destination in self.game.walls:
             if self.name == 'blecks':
-                messages.append('ouch')
-                npc_turn()
-        elif destination in npc_locations.values():
+                self.game.messages.append('ouch')
+                self.game.npc_turn()
+        elif destination in self.game.npc_locations.values():
             if self.name == 'blecks':
-                for x, y in npc_locations.items():
+                for x, y in self.game.npc_locations.items():
                     if y == destination:
                         target = x
-                        npc_interactions(target)
+                        self.game.npc_interactions(target)
                         break
         
-        elif destination == (blecks.x, blecks.y):
+        elif destination == (self.game.blecks.x, self.game.blecks.y):
             if self.name != 'blecks':
                 roll = random.randint(1, 2)
                 if roll == 1:
-                    messages.append(f"{self.name} almost bumps right into you")
+                    self.game.messages.append(f"{self.name} almost bumps right into you")
                 if roll == 2:
-                    messages.append(f"{self.name}: beg your pardon mister")
-        elif destination in [x[1] for x in existing_items if x[0].name == 'door' and x[0].is_locked]:
+                    self.game.messages.append(f"{self.name}: beg your pardon mister")
+        elif destination in [x[1] for x in self.game.existing_items if x[0].name == 'door' and x[0].is_locked]:
             if self.name == 'blecks':
-                messages.append('that door is locked')
-                player_turn(messages)
+                self.game.messages.append('that door is locked')
+                self.game.player_turn(self.game.messages)
         else:
             self.x = destination[0]
             self.y = destination[1]
-            npc_locations[self] = (self.x, self.y)
+            self.game.npc_locations[self] = (self.x, self.y)
             if self.name == 'blecks':
                 items_here = []
-                for x in existing_items:
-                        if x[0].name == 'bed' and x[1] == (blecks.x, blecks.y):
-                            if time >= 1400:
+                for x in self.game.existing_items:
+                        if x[0].name == 'bed' and x[1] == (self.game.blecks.x, self.game.blecks.y):
+                            if self.game.time >= 1400:
                                 sleep_choice = input('sleep? (y/n)')
-                                draw_grid(g)
+                                self.game.draw_grid(self.game.g)
                                 if sleep_choice == 'y':
                             
-                                    sleep_amount = 2400 - time
-                                    time += (sleep_amount)
-                                    blecks.energy_modifier = 1 - (800 - sleep_amount) / 1600
+                                    sleep_amount = 2400 - self.game.time
+                                    self.game.time += (sleep_amount)
+                                    self.game.blecks.energy_modifier = 1 - (800 - sleep_amount) / 1600
                                     npc_turn()
                                     break
                             else:
-                                player_turn('you can only sleep at night (1400-2400)')
+                                self.game.player_turn('you can only sleep at night (1400-2400)')
                                 break
-                        elif (blecks.x, blecks.y) == x[1]:
+                        elif (self.game.blecks.x, self.game.blecks.y) == x[1]:
                             items_here.append(x[0])
                 if len(items_here) > 0:
                     i = 1
                     for ih in items_here:
-                        messages.append(ih.emoji + ' ' + str(ih.name))
+                        self.game.messages.append(ih.emoji + ' ' + str(ih.name))
                         i += 1
-                npc_turn()
+                self.game.npc_turn()
 
     def hit(self, target, weapon):
         damage_dealt = weapon.base_damage * self.combat_skill * self.energy_modifier
@@ -302,13 +545,13 @@ class Person:
             dest2 = (self.x+2, self.y)
             dest3 = (self.x+3, self.y)
             
-        bolt1 = Item(dest[0], dest[1], 'bolt', 0, '⚡️')
+        bolt1 = Item(dest[0], dest[1], 'bolt', self, 0, '⚡️')
         draw_grid(g)
         tm.sleep(0.15)
-        bolt2 = Item(dest2[0], dest2[1], 'bolt', 0, '⚡️')
+        bolt2 = Item(dest2[0], dest2[1], 'bolt', self, 0, '⚡️')
         draw_grid(g)
         tm.sleep(0.15)
-        bolt3 = Item(dest3[0], dest3[1], 'bolt', 0, '⚡️')
+        bolt3 = Item(dest3[0], dest3[1], 'bolt', self, 0, '⚡️')
         draw_grid(g)
         tm.sleep(0.15)
         existing_items.remove((bolt1, (dest[0], dest[1])))
@@ -324,10 +567,10 @@ class Person:
         bolt2.emoji = ''
         bolt3.emoji = ''
         draw_grid(g)
-        for (key, value) in npc_locations.items():
+        for (key, value) in self.game.npc_locations.items():
             if key.name != 'blecks':
                 if (dest[0], dest[1]) == value or (dest2[0], dest2[1]) == value or (dest3[0], dest3[1]) == value:
-                    messages.append(f"{key.name} gets zapped!")
+                    self.game.messages.append(f"{key.name} gets zapped!")
                     key.is_stunned = True
                     key.stun_timer = 4
                     if key.subtype == 'civilian':
@@ -336,18 +579,15 @@ class Person:
                     if self not in key.enemies:
                             key.enemies.append(self)
                     key.take_damage(self, 1, taser)
-        if (dest[0], dest[1]) == (blecks.x, blecks.y) or (dest2[0], dest2[1]) == (blecks.x, blecks.y) or (dest3[0], dest3[1]) == (blecks.x, blecks.y):
-            messages.append(f"you get zapped!")
-            blecks.is_stunned = True
-            blecks.stun_timer = 4
-            blecks.take_damage(self, 1, taser)
+        if (dest[0], dest[1]) == (self.game.blecks.x, self.game.blecks.y) or (dest2[0], dest2[1]) == (self.game.blecks.x, self.game.blecks.y) or (dest3[0], dest3[1]) == (self.game.blecks.x, self.game.blecks.y):
+            self.game.messages.append(f"you get zapped!")
+            self.game.blecks.is_stunned = True
+            self.game.blecks.stun_timer = 4
+            self.game.blecks.take_damage(self, 1, taser)
                 
         npc_turn()
             
         
-        
-    
-
     def item_actions(self, item):
         actions = ['drop', 'place/give']
         if item.base_damage > 0:
@@ -366,61 +606,61 @@ class Person:
         draw_grid(g)
         if player_choice.isnumeric() == True:
             if actions[(int(player_choice) - 1)] == 'drop':
-                existing_items.append((item, (blecks.x, blecks.y)))
+                existing_items.append((item, (self.game.blecks.x, self.game.blecks.y)))
                 self.inventory.remove(item)
-                messages.append(f"you drop the {item.name}")
+                self.game.messages.append(f"you drop the {item.name}")
                 npc_turn()
             if actions[(int(player_choice) - 1)] == 'place/give':
                 dir = input('what direction? ')
                 draw_grid(g)
                 if dir == 'd':
-                    destination = (blecks.x + 1, blecks.y)
+                    destination = (self.game.blecks.x + 1, self.game.blecks.y)
                 elif dir == 'a':
-                    destination = (blecks.x - 1, blecks.y)
+                    destination = (self.game.blecks.x - 1, self.game.blecks.y)
                 elif dir == 'w':
-                    destination = (blecks.x, blecks.y - 1)
+                    destination = (self.game.blecks.x, self.game.blecks.y - 1)
                 elif dir == 's':
-                    destination = (blecks.x, blecks.y + 1)
+                    destination = (self.game.blecks.x, self.game.blecks.y + 1)
                 else:
                     print('invalid command\n')
                     self.item_actions(item)
                 for p in existing_items:
                     if p[0].name == 'amphora' and p[1] == destination:
                         p[0].inventory.append(item)
-                        blecks.inventory.remove(item)
-                        messages.append(f"you put the {item.name} in the amphora")
+                        self.game.blecks.inventory.remove(item)
+                        self.game.messages.append(f"you put the {item.name} in the amphora")
                         npc_turn()
                         break
-                if destination in npc_locations.values():
-                    for key, value in npc_locations.items():
+                if destination in self.game.npc_locations.values():
+                    for key, value in self.game.npc_locations.items():
                         if value == destination:
                             target = key
                     self.inventory.remove(item)
-                    npc_receive_item(target, item)
-                elif destination in walls:
+                    game.npc_receive_item(target, item)
+                elif destination in self.game.walls:
                     print('impossible!\n')
                     self.item_actions(item)
                 
                 else:
                     existing_items.append((item, destination))
                     self.inventory.remove(item)
-                    messages.append(f"you place the {item.name}")
+                    self.game.messages.append(f"you place the {item.name}")
                     npc_turn()
             if actions[(int(player_choice) - 1)] == 'hit with':
                 dir = input('in what direction? ')
                 if dir == 'd':
-                    destination = (blecks.x + 1, blecks.y)
+                    destination = (self.game.blecks.x + 1, self.game.blecks.y)
                 elif dir == 'a':
-                    destination = (blecks.x - 1, blecks.y)
+                    destination = (self.game.blecks.x - 1, self.game.blecks.y)
                 elif dir == 'w':
-                    destination = (blecks.x, blecks.y - 1)
+                    destination = (self.game.blecks.x, self.game.blecks.y - 1)
                 elif dir == 's':
-                    destination = (blecks.x, blecks.y + 1)
+                    destination = (self.game.blecks.x, self.game.blecks.y + 1)
                 else:
                     print('invalid command\n')
                     self.item_actions(item)
-                if destination in npc_locations.values():
-                    for key, value in npc_locations.items():
+                if destination in self.game.npc_locations.values():
+                    for key, value in self.game.npc_locations.items():
                         if value == destination:
                             target = key
                     if self not in target.enemies:
@@ -429,7 +669,7 @@ class Person:
                     self.hit(target, item)
 
                 else:
-                    messages.append(f"you swing the {item.name} through the air..")
+                    self.game.messages.append(f"you swing the {item.name} through the air..")
                     npc_turn()
             if actions[(int(player_choice) - 1)] == 'tase':
                 dir = input('in what direction? ')
@@ -448,11 +688,11 @@ class Person:
                     if i.name == 'door' and loc == dest:
                         if i.is_locked == True:
                             i.is_locked = False
-                            messages.append('you unlock the door')
+                            self.game.messages.append('you unlock the door')
                             
                         else:
                             i.is_locked = True
-                            messages.append('you lock the door')
+                            self.game.messages.append('you lock the door')
                         npc_turn()
                         break
                 npc_turn()
@@ -471,7 +711,7 @@ class Person:
         y_dist = destination[1] - self.y
         if abs(x_dist) > abs(y_dist):
             if x_dist > 0:
-                if ((self.x + 1), self.y) not in walls:
+                if ((self.x + 1), self.y) not in self.game.walls:
                     direction = 'd'
                 else:
                     if y_dist > 0:
@@ -480,7 +720,7 @@ class Person:
                         direction = 'w'
 
             if x_dist < 0:
-                if ((self.x - 1), self.y) not in walls:
+                if ((self.x - 1), self.y) not in self.game.walls:
                     direction = 'a'
                 else:
                     if y_dist > 0:
@@ -490,7 +730,7 @@ class Person:
 
         elif abs(y_dist) > abs(x_dist):
             if y_dist > 0:
-                if ((self.x), self.y + 1) not in walls:
+                if ((self.x), self.y + 1) not in self.game.walls:
                     direction = 's'
                 else:
                     if x_dist > 0:
@@ -499,7 +739,7 @@ class Person:
                         direction = 'a'
 
             if y_dist < 0:
-                if ((self.x), self.y - 1) not in walls:
+                if ((self.x), self.y - 1) not in self.game.walls:
                     direction = 'w'
                 else:
                     if x_dist > 0:
@@ -528,7 +768,7 @@ class Person:
         y_dist = destination[1] - self.y
         if abs(x_dist) > abs(y_dist):
             if x_dist > 0:
-                if ((self.x + 1), self.y) not in walls:
+                if ((self.x + 1), self.y) not in self.game.walls:
                     direction = 'a'
                 else:
                     if y_dist > 0:
@@ -537,7 +777,7 @@ class Person:
                         direction = 'w'
 
             if x_dist < 0:
-                if ((self.x - 1), self.y) not in walls:
+                if ((self.x - 1), self.y) not in self.game.walls:
                     direction = 'd'
                 else:
                     if y_dist > 0:
@@ -547,7 +787,7 @@ class Person:
 
         elif abs(y_dist) > abs(x_dist):
             if y_dist > 0:
-                if ((self.x), self.y + 1) not in walls:
+                if ((self.x), self.y + 1) not in self.game.walls:
                     direction = 'w'
                 else:
                     if x_dist > 0:
@@ -556,7 +796,7 @@ class Person:
                         direction = 'a'
 
             if y_dist < 0:
-                if ((self.x), self.y - 1) not in walls:
+                if ((self.x), self.y - 1) not in self.game.walls:
                     direction = 's'
                 else:
                     if x_dist > 0:
@@ -580,61 +820,59 @@ class Person:
         self.move(direction)
 
     def take_damage(self, dealer, amount, weapon):
-        global npc_locations
-        global messages
         if self.name != 'blecks':
             roll = random.randint(1, 2)
             if amount >= self.hp / 2 or self.hp - amount <= 4:
                 if roll == 1:
 
                     if self.subtype == 'civilian':
-                        messages.append(f"{self.name} screams!")
+                        self.game.messages.append(f"{self.name} screams!")
                         self.emoji = '😱'
 
                 elif roll == 2:
 
                     if self.subtype == 'civilian':
-                        messages.append(f"{self.name}: aahh!")
+                        self.game.messages.append(f"{self.name}: aahh!")
                         self.emoji = '😱'
 
             else:
                 if roll == 1:
                     if self.subtype == 'civilian':
-                        messages.append(f"{self.name} flinches")
+                        self.game.messages.append(f"{self.name} flinches")
                         self.emoji = '😨'
 
                 elif roll == 2:
                     if self.subtype == 'civilian':
-                        messages.append(f"{self.name}: ow!")
+                        self.game.messages.append(f"{self.name}: ow!")
                         self.emoji = '😨'
 
         else:
             if dealer.subtype == 'civilian':
                 dealer.emoji = '😡'
             if weapon.name != 'taser':
-                messages.append(f"{dealer.name} hits you with a {weapon.name}!")
+                self.game.messages.append(f"{dealer.name} hits you with a {weapon.name}!")
             
         if self.subtype == 'civilian' or self.subtype == 'guard':
-            for p in npc_locations.keys():
+            for p in self.game.npc_locations.keys():
                 if p.subtype == 'guard' and dealer.subtype != 'guard':
                     if distance_between((dealer.x, dealer.y), (p.x, p.y)) <= p.vision:
                         p.guard_targets.append(dealer)
-                        messages.append(f"{p.name}: not in my town you don't!")
+                        self.game.messages.append(f"{p.name}: not in my town you don't!")
             
             
         self.hp -= amount
         if self.hp <= 0:
             if self.name == 'blecks':
-                blecks.emoji = '💀'
+                self.game.blecks.emoji = '💀'
                 draw_grid(g)
-                print(messages)
+                print(self.game.messages)
                 input('\n you die..')
             else:
-                messages.append(f"{self.name} dies...")
+                self.game.messages.append(f"{self.name} dies...")
                     
-                for key, value in npc_locations.items():
+                for key, value in self.game.npc_locations.items():
                     if value == (self.x, self.y):
-                        del npc_locations[key]
+                        del self.game.npc_locations[key]
                         self.is_alive = False
                         Person._registry.remove(self)
                         break
@@ -674,267 +912,16 @@ class Person:
             self.move(direction)
 
 
-def npc_turn():
-    global messages
-    global time
-    global day 
-    time += blecks.speed / blecks.energy_modifier
-    
-    if time > 2400:
-        time -= 2400
-        day += 1
-    for x in Person._registry:
-        if x.is_alive and x.name != 'blecks':
-            for i in range(int(blecks.speed / blecks.energy_modifier)):
-                if x.turn_clock == x.speed:
-                    x.turn_clock = 0
-                    npc_take_turn(x)
-                else:
-                    x.turn_clock += 1
-    player_turn(messages)
+def main():
+    """
+    Run a new blecks game!
+    """
+    game = Game()
+    intro = "Welcome, Blecks. It's the big city now. see for yourself...\n one character per command: \n wasd = move; e = inv; q = pick up"
+    game.place_objects()
+    game.player_turn()
 
 
-def npc_take_turn(npc):
-    global messages
-    if npc.is_stunned == True:
-        if npc.stun_timer > 0:
-            npc.stun_timer -=1
-            if npc.subtype == 'civilian' and npc.emoji != '⛓':
-                npc.emoji = '😵'
-        else:
-            npc.is_stunned = False
-    
-    elif len(npc.guard_targets) > 0:
-        if blecks in npc.guard_targets:
-            i = blecks
-        else:
-            i = Reverse(npc.guard_targets)[0]
-            
-        i_xy = (i.x, i.y)
-        npc_xy = (npc.x, npc.y)
-        distance = distance_between(i_xy, npc_xy)
-        if distance < 1.0 and (i.is_stunned == True or 'taser' not in [item.name for item in npc.inventory]):
-            messages = []
-            i.emoji = '⛓'
-            i.is_stunned = True
-            i.stun_timer = 100
-            
-            draw_grid(g)
-            if i.name == 'blecks':
-                input(f"{npc.name}: you're under arrest!\n you spend thr rest of your life in prison..")
-            npc.guard_targets.remove(i)
-            
-        elif i.y == npc.y and i.is_stunned == False:
-            if (i.x - npc.x) >= 1 and (i.x - npc.x) <= 3:
-                dir = 'd'
-                npc.tase(dir)
-            elif (i.x - npc.x) <= -1 and (i.x - npc.x) >= -3:
-                dir = 'a'
-                npc.tase(dir)
-                
-                
-        elif i.x == npc.x and i.is_stunned == False:
-            if i.y - npc.y >= 1 and i.y - npc.y <= 3:
-                dir = 's'
-                npc.tase(dir)
-            elif i.y - npc.y <= -1 and i.y - npc.y >= -3:
-                dir = 'w'
-                npc.tase(dir)
-                
-        
-            
-        else:
-            npc.move_toward((i.x, i.y))
-            
-                
-                                
-    elif len(npc.enemies) > 0:
-        for i in reversed(npc.enemies):
-            distance = distance_between((i.x, i.y), (npc.x, npc.y))
-            if distance <= npc.vision:
-                if npc.is_aggressive:
-                    if distance >= 1.0:
-                        messages.append(f"{npc.name} moves toward you!")
-                        if npc.subtype == 'civilian':
-                            npc.emoji = '😠'
-                        npc.move_toward((i.x, i.y))
-                        break
-                    else:
-                        weapon_list = []
-                        for object in npc.inventory:
-                            weapon_list.append((object, object.base_damage))
-    
-                        for (key, value) in weapon_list:
-                            if value == max([g[1] for g in weapon_list]):
-                                weapon = key
-    
-                                npc.hit(i, weapon)
-                                break
-                else:
-                    if i.name == 'blecks':
-                        message = f"{npc.name} runs from you"
-                    else:
-                        message = f"{npc.name} runs from {i.name}"
-                    if message not in messages:
-                        
-                            messages.append(message)
-                    if npc.subtype == 'civilian':
-                        npc.emoji = '😰'
-                        npc.run_from((i.x, i.y))
-            else:
-                npc.wander()
-
-    else:
-        if npc in npc_locations.keys():
-            npc.wander()
-
-
-def npc_receive_item(target, item):
-    global messages
-    if target.name == 'tamel':
-        if (str(item)) == 'dildo':
-            messages.append(f"{target.name}: oh I been needin one of those ;)")
-        else:
-            messages.append(f"{target.name}: useless")
-    
-    
-    elif target.subtype == 'guard':
-        message = input(f"{target.name}: sick a bribe! who should i arrest?")
-        for x in npc_locations.keys():
-            if x.name == message:
-                target.guard_targets.append(x)
-                messages.append(f"{target.name}: on it.")
-    else:
-        messages.append(f"{target.name}: a {item.name}, wow. thanks for it")
-    npc_turn()
-
-
-def print_toolbar():
-    global time
-    global day
-    if time >= 0 and time < 200:
-        time_emoji = '🌄'
-    if time < 1200 and time >= 200:
-        time_emoji = '☀️'
-    if time >= 1200 and time < 1400:
-        time_emoji = '🌅'
-    if time >= 1400:
-        time_emoji = '🌙'
-    if watch in blecks.inventory:
-        contents = f"{time_emoji} Time: {int(time)}; Day: {day}; HP: {blecks.hp}; Energy: {int(blecks.energy_modifier * 100)}%; Gold: {blecks.gold};"
-    else:
-        contents = f"{time_emoji} Day: {day}; HP: {blecks.hp}; Gold: {blecks.gold};"
-    print(contents)
-
-
-def player_turn(message=''):
-    global time
-    global messages
-    draw_grid(g)
-    print(str(message) + '\n')
-    messages = []
-    player_choice = input('?')
-    draw_grid(g)
-    if blecks.is_stunned == True:
-        if blecks.stun_timer > 0:
-            messages.append('you are stunned..')
-            blecks.stun_timer -=1
-            npc_turn()
-        else:
-            blecks.is_stunned = False
-            messages.append('you feel in control again')
-            npc_turn()
-         
-    elif player_choice == '?':
-        print('wasd = move; e = inv; q = pick up')
-        player_turn()
-    elif player_choice == 'a':
-        blecks.move(player_choice)
-    elif player_choice == 'd':
-        blecks.move(player_choice)
-    elif player_choice == 'w':
-        blecks.move(player_choice)
-    elif player_choice == 's':
-        blecks.move(player_choice)
-    elif player_choice == 'e':
-        blecks.inventory_actions()
-    elif player_choice == 'q':
-        i = 0
-        for x in existing_items:
-            if (blecks.x, blecks.y) == x[1]:
-                if x[0].name == 'amphora':
-                    options = []
-                    i = 1
-                    for t in x[0].inventory:
-                        print(f"{str(i)}. {t.name} {t.emoji}")
-                        i += 1
-                    player_choice = input('x. back')
-                    if player_choice.isnumeric() == True and int(player_choice) <= len(x[0].inventory): 
-                        chosen_item = x[0].inventory[(int(player_choice) - 1)]
-                        blecks.inventory.append(chosen_item)
-                        x[0].inventory.remove(chosen_item)
-                        messages.append(f"you take the {chosen_item.name}")
-                        npc_turn()
-                    elif player_choice == 'x':
-                        player_turn()
-                    else:
-                        player_turn('invalid command')
-                    
-                        
-                        
-                elif x[0].name != 'door' and x[0].name != 'bed':
-                    grabbed_item = x[0].name
-                    blecks.inventory.append(x[0])
-                    i += 1
-                    existing_items.remove(x)
-                    if i > 0:
-                        messages.append(f"{grabbed_item} grabbed")
-                        npc_turn()
-                        break
-                    else:
-                        player_turn('nothing to pick up here ')
-                        break
-                else:
-                    messages.append('can\'t pick that up')
-                    player_turn(messages)
-    elif player_choice == 'dt':
-        target = input('distance to what?')
-        for x, y in npc_locations.items():
-            if target == x.name:
-                distance = distance_between((blecks.x, blecks.y), y)
-                player_turn(f"{distance} away.")
-                break
-
-
-    else:
-        player_turn('invalid command')
-
-
-intro = "Welcome, Blecks. It's the big city now. see for yourself...\n one character per command: \n wasd = move; e = inv; q = pick up"
-
-pen = Item(-1, -1, 'pen', 1, '🖋')
-notepad = Item(-1, -1, 'notepad', 0, '🗒')
-knife = Item(-1, -1, 'knife', 3, '🔪')
-taser = Item(-1, -1, 'taser', 1, '🔫')
-taser2 = Item(-1, -1, 'taser', 1, '🔫')
-key1 = Item(-1, -1, 'key', 1, '🗝')
-amphora = Item(3, 1, 'amphora', 0, '🏺', inventory=[pen, notepad, knife])
-
-blecks = Person('blecks', subtype='player', x=1, y=1, hp=10, speed=20, emoji='🙎‍♂️', inventory=[watch, key1], vision=4)
-
-tamel = Person('tamel', subtype='civilian', x=2, y=5, hp=10, speed=15)
-jimben = Person('jimben', subtype='civilian', x=7, y=7, hp=10, speed=25, is_aggressive=True, inventory=[knife])
-
-guard1 = Person('the guard', subtype='guard', x=1, y=8, hp=10, speed=25, is_aggressive=True, inventory=[taser, knife], emoji='💂🏼‍♀️', vision = 8)
-
-##blecks house 
-bed = Item(1, 1, 'bed', 0, '🛏')
-build_wall((4, 0), 4, 'y')
-build_wall((2, 3), 2, 'x')
-door1 = Item(1, 3, 'door', 0, '🚪')
-
-build_wall((14, 0), 10, 'y')
-build_wall((0, 0), 50, 'x')
-build_wall((0, 0), 15, 'y')
-build_wall((0, 9), 50, 'x')
-player_turn(intro)
+# If this script is being run directly (not just being imported by another script), run main()
+if __name__ == "__main__":
+    sys.exit(main())
