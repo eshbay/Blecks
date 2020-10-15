@@ -278,7 +278,7 @@ class Game:
             self.blecks.inventory_actions()
         elif player_choice == 'q':
             i = 0
-            for x in existing_items:
+            for x in self.existing_items:
                 if (self.blecks.x, self.blecks.y) == x[1]:
                     if x[0].name == 'amphora':
                         options = []
@@ -294,9 +294,9 @@ class Game:
                             self.messages.append(f"you take the {chosen_item.name}")
                             npc_turn()
                         elif player_choice == 'x':
-                            player_turn()
+                            self.player_turn()
                         else:
-                            player_turn('invalid command')
+                            self.player_turn('invalid command')
                         
                             
                             
@@ -304,28 +304,27 @@ class Game:
                         grabbed_item = x[0].name
                         self.blecks.inventory.append(x[0])
                         i += 1
-                        existing_items.remove(x)
+                        self.existing_items.remove(x)
                         if i > 0:
                             self.messages.append(f"{grabbed_item} grabbed")
-                            npc_turn()
+                            self.npc_turn()
                             break
                         else:
-                            player_turn('nothing to pick up here ')
+                            self.player_turn('nothing to pick up here ')
                             break
                     else:
                         self.messages.append('can\'t pick that up')
-                        player_turn(self.messages)
+                        self.player_turn(self.messages)
         elif player_choice == 'dt':
             target = input('distance to what?')
-            for x, y in npc_locations.items():
+            for x, y in self.npc_locations.items():
                 if target == x.name:
                     distance = distance_between((self.blecks.x, self.blecks.y), y)
-                    player_turn(f"{distance} away.")
+                    self.player_turn(f"{distance} away.")
                     break
-
-
         else:
-            player_turn('invalid command')
+            self.player_turn('invalid command')
+
 
     def draw_grid(self, graph, width=1):
         clear() 
@@ -365,8 +364,7 @@ class Game:
             if (str(item)) == 'dildo':
                 self.messages.append(f"{target.name}: oh I been needin one of those ;)")
             else:
-                self.messages.append(f"{target.name}: useless")
-        
+                self.messages.append(f"{target.name}: useless")        
         
         elif target.subtype == 'guard':
             message = input(f"{target.name}: sick a bribe! who should i arrest?")
@@ -376,7 +374,7 @@ class Game:
                     self.messages.append(f"{target.name}: on it.")
         else:
             self.messages.append(f"{target.name}: a {item.name}, wow. thanks for it")
-        npc_turn()
+        self.npc_turn()
 
 class MapGrid:
     def __init__(self, width, height):
@@ -603,16 +601,16 @@ class Person:
             print(str(i) + '. ' + x + ' ' + item.emoji)
             i += 1
         player_choice = input('x = back\n')
-        draw_grid(g)
+        self.game.draw_grid(self.game.g)
         if player_choice.isnumeric() == True:
             if actions[(int(player_choice) - 1)] == 'drop':
-                existing_items.append((item, (self.game.blecks.x, self.game.blecks.y)))
+                self.game.existing_items.append((item, (self.game.blecks.x, self.game.blecks.y)))
                 self.inventory.remove(item)
                 self.game.messages.append(f"you drop the {item.name}")
-                npc_turn()
+                self.game.npc_turn()
             if actions[(int(player_choice) - 1)] == 'place/give':
                 dir = input('what direction? ')
-                draw_grid(g)
+                self.game.draw_grid(g)
                 if dir == 'd':
                     destination = (self.game.blecks.x + 1, self.game.blecks.y)
                 elif dir == 'a':
@@ -629,7 +627,7 @@ class Person:
                         p[0].inventory.append(item)
                         self.game.blecks.inventory.remove(item)
                         self.game.messages.append(f"you put the {item.name} in the amphora")
-                        npc_turn()
+                        self.game.npc_turn()
                         break
                 if destination in self.game.npc_locations.values():
                     for key, value in self.game.npc_locations.items():
@@ -645,7 +643,7 @@ class Person:
                     existing_items.append((item, destination))
                     self.inventory.remove(item)
                     self.game.messages.append(f"you place the {item.name}")
-                    npc_turn()
+                    self.game.npc_turn()
             if actions[(int(player_choice) - 1)] == 'hit with':
                 dir = input('in what direction? ')
                 if dir == 'd':
@@ -670,7 +668,7 @@ class Person:
 
                 else:
                     self.game.messages.append(f"you swing the {item.name} through the air..")
-                    npc_turn()
+                    self.game.npc_turn()
             if actions[(int(player_choice) - 1)] == 'tase':
                 dir = input('in what direction? ')
                 self.tase(dir)
@@ -693,18 +691,17 @@ class Person:
                         else:
                             i.is_locked = True
                             self.game.messages.append('you lock the door')
-                        npc_turn()
+                        self.game.npc_turn()
                         break
-                npc_turn()
+                self.game.npc_turn()
             if actions[(int(player_choice) - 1)] == 'write':
                 i = 1
                 for p in self.inventory:
                     if p.name == 'notepad':
-                        promi
-                    
+                        promi # TODO fix this!!
                     
         elif player_choice == 'x':
-            player_turn()
+            self.game.player_turn()
 
     def move_toward(self, destination):
         x_dist = destination[0] - self.x
@@ -885,12 +882,12 @@ class Person:
             print(str(i) + '. ' + x.emoji + ' ' + x.name)
             i += 1
         player_choice = input('x = back\n')
-        draw_grid(g)
+        self.game.draw_grid(self.game.g)
         if player_choice.isnumeric() == True:
             chosen_item = self.inventory[int(player_choice) - 1]
             self.item_actions(chosen_item)
         elif player_choice == 'x':
-            player_turn()
+            self.game.player_turn()
         else:
             print('invalid command\n')
             self.inventory_actions()
@@ -919,7 +916,7 @@ def main():
     game = Game()
     intro = "Welcome, Blecks. It's the big city now. see for yourself...\n one character per command: \n wasd = move; e = inv; q = pick up"
     game.place_objects()
-    game.player_turn()
+    game.player_turn(intro)
 
 
 # If this script is being run directly (not just being imported by another script), run main()
