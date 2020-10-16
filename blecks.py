@@ -17,29 +17,32 @@ def distance_between(a_xy, b_xy):
     return distance
 
 
+class Thing:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
 class MapGrid:
     def __init__(self, width, height):
         self.width = width
         self.height = height
 
-class Doodad:
-    def __init__(self, x, y, is_obstructive=False, emoji, name):
+class Doodad(Thing):
+    def __init__(self, x, y, emoji, name, is_obstructive=False):
+        super().__init__(x,y)
         self.name = name
-        self.x = x
-        self.y = y
         self.is_obstructive = is_obstructive
         self.emoji = emoji
         existing_doodads.append((self, (self.x, self.y)))
 
 
-class Item:
+class Item(Thing):
     instances = []
 
     def __init__(self, x, y, name, base_damage=1, emoji='ℹ️', is_locked=False, inventory=[]):
+        super().__init__(x,y)
         self.name = str(name)
         self.emoji = emoji
-        self.x = x
-        self.y = y
         self.inventory = inventory
         self.is_locked = is_locked
         self.base_damage = base_damage
@@ -114,7 +117,7 @@ def doodad_line(origin_xy, dir_length, axis, is_obstructive, emoji, name):
         i = origin_xy[0]
         if dir_length > 0:
             while i < dir_length + origin_xy[0]:
-                name = Doodad(i, origin_xy[1], is_obstructive, emoji, name))
+                name = Doodad(i, origin_xy[1], emoji, name, is_obstructive)
                 i += 1
         elif dir_length < 0:
             while i > dir_length + origin_xy[0]:
@@ -185,11 +188,12 @@ def input_message(content):
     input(str(content))
 
 
-class Person:
+class Person(Thing):
     _registry = []
 
     def __init__(self, name, subtype='civilian',
                  x=1, y=1, hp=10, speed=10, emoji='😐', is_aggressive=False, inventory=[], vision=5):
+        super().__init__(x,y)
         self.name = str(name)
         self.emoji = emoji
         self.subtype = subtype
@@ -202,8 +206,6 @@ class Person:
         self.combat_skill = 1.0
         self.gold = 100
         self.inventory = inventory
-        self.x = x
-        self.y = y
         self.move_probability = 70
         self.enemies = []
         self.guard_targets = []
