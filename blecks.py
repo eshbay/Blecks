@@ -620,13 +620,13 @@ class Person(Thing):
             dest2 = (self.x+2, self.y)
             dest3 = (self.x+3, self.y)
             
-        bolt1 = Item(dest[0], dest[1], 'bolt', self, 0, '⚡️')
+        bolt1 = Item(dest[0], dest[1], 'bolt', self.game, 0, '⚡️')
         draw_grid(g)
         tm.sleep(0.15)
-        bolt2 = Item(dest2[0], dest2[1], 'bolt', self, 0, '⚡️')
+        bolt2 = Item(dest2[0], dest2[1], 'bolt', self.game, 0, '⚡️')
         draw_grid(g)
         tm.sleep(0.15)
-        bolt3 = Item(dest3[0], dest3[1], 'bolt', self, 0, '⚡️')
+        bolt3 = Item(dest3[0], dest3[1], 'bolt', self.game, 0, '⚡️')
         draw_grid(g)
         tm.sleep(0.15)
         existing_items.remove((bolt1, (dest[0], dest[1])))
@@ -951,7 +951,7 @@ class Person(Thing):
                         Person._registry.remove(self)
                         break
         if dealer.name == 'blecks' and weapon.name != 'taser':
-            npc_turn()
+            self.game.npc_turn()
 
     def inventory_actions(self):
         i = 1
