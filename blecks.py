@@ -104,7 +104,7 @@ class Game:
         pen = Item(-1, -1, 'pen', self, 1, '🖋')
         notepad = Item(-1, -1, 'notepad', self, 0, '🗒')
         knife = Item(-1, -1, 'knife', self, 3, '🔪')
-        taser = Item(-1, -1, 'taser', self, 1, '🔫')
+        self.taser = Item(-1, -1, 'taser', self, 1, '🔫')
         taser2 = Item(-1, -1, 'taser', self, 1, '🔫')
         key1 = Item(-1, -1, 'key', self, 1, '🗝')
         amphora = Item(3, 1, 'amphora', self, 0, '🏺', inventory=[pen, notepad, knife])
@@ -116,7 +116,7 @@ class Game:
         tamel = Person('tamel', self, subtype='civilian', x=2, y=5, hp=10, speed=15)
         jimben = Person('jimben', self, subtype='civilian', x=7, y=7, hp=10, speed=25, is_aggressive=True, inventory=[knife])
 
-        guard1 = Person('the guard', self, subtype='guard', x=1, y=8, hp=10, speed=25, is_aggressive=True, inventory=[taser, knife], emoji='💂🏼‍♀️', vision = 8)
+        guard1 = Person('the guard', self, subtype='guard', x=1, y=8, hp=10, speed=25, is_aggressive=True, inventory=[self.taser, knife], emoji='💂🏼‍♀️', vision = 8)
 
         ##blecks house 
         bed = Item(1, 1, 'bed', self, 0, '🛏')
@@ -184,7 +184,7 @@ class Game:
                 i.is_stunned = True
                 i.stun_timer = 100
                 
-                draw_grid(g)
+                self.draw_grid(g)
                 if i.name == 'blecks':
                     input(f"{npc.name}: you're under arrest!\n you spend thr rest of your life in prison..")
                 npc.guard_targets.remove(i)
@@ -417,81 +417,6 @@ day = 0
 time = 0
 
 
-def draw_grid(graph, width=1):
-    global time
-    clear() 
-    print_toolbar()
-    
-    y_vision = range((blecks.y - blecks.vision), (blecks.y + blecks.vision))
-    
-    for y in y_vision:
-        for x in range((blecks.x - 8), (blecks.x + 8)):
-            if (x, y) in walls:
-                print("%%-%ds" % width % '▪️', end="")
-            elif (x, y) == (blecks.x, blecks.y):
-                print("%%-%ds" % width % blecks.emoji, end="")
-            elif (x, y) in npc_locations.values():
-                for p, loc in npc_locations.items():
-                    if loc == (x, y):
-                        print("%%-%ds" % width % p.emoji, end="")
-            elif (x, y) in (get_item_locations()):
-                for (item, loc) in existing_items:
-                    if (x, y) == loc:
-                        print("%%-%ds" % width % item.emoji, end="")
-                        break
-
-            else:
-                print("%%-%ds" % width % '◾️', end="")
-
-        print()
-
-
-def build_wall(origin_xy, dir_length, axis):
-    global walls
-    if axis == 'x':
-        i = origin_xy[0]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[0]:
-                walls.append((i, origin_xy[1]))
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[0]:
-                walls.append((i, origin_xy[1]))
-                i -= 1
-    elif axis == 'y':
-        i = origin_xy[1]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i -= 1
-
-def doodad_line(origin_xy, dir_length, axis, is_obstructive, emoji, name):
-    if axis == 'x':
-        i = origin_xy[0]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[0]:
-                name = Doodad(i, origin_xy[1], emoji, name, is_obstructive)
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[0]:
-                walls.append((i, origin_xy[1]))
-                i -= 1
-    elif axis == 'y':
-        i = origin_xy[1]
-        if dir_length > 0:
-            while i < dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i += 1
-        elif dir_length < 0:
-            while i > dir_length + origin_xy[1]:
-                walls.append((origin_xy[0], i))
-                i -= 1
-
-
 def clear():
     print('\n')
 
@@ -620,18 +545,18 @@ class Person(Thing):
             dest2 = (self.x+2, self.y)
             dest3 = (self.x+3, self.y)
             
-        bolt1 = Item(dest[0], dest[1], 'bolt', self, 0, '⚡️')
-        draw_grid(g)
+        bolt1 = Item(dest[0], dest[1], 'bolt', self.game, 0, '⚡️')
+        self.game.draw_grid(g)
         tm.sleep(0.15)
-        bolt2 = Item(dest2[0], dest2[1], 'bolt', self, 0, '⚡️')
-        draw_grid(g)
+        bolt2 = Item(dest2[0], dest2[1], 'bolt', self.game, 0, '⚡️')
+        self.game.draw_grid(g)
         tm.sleep(0.15)
-        bolt3 = Item(dest3[0], dest3[1], 'bolt', self, 0, '⚡️')
-        draw_grid(g)
+        bolt3 = Item(dest3[0], dest3[1], 'bolt', self.game, 0, '⚡️')
+        self.game.draw_grid(g)
         tm.sleep(0.15)
-        existing_items.remove((bolt1, (dest[0], dest[1])))
-        existing_items.remove((bolt2, (dest2[0], dest2[1])))
-        existing_items.remove((bolt3, (dest3[0], dest3[1])))
+        self.game.existing_items.remove((bolt1, (dest[0], dest[1])))
+        self.game.existing_items.remove((bolt2, (dest2[0], dest2[1])))
+        self.game.existing_items.remove((bolt3, (dest3[0], dest3[1])))
         bolt1.x = -1
         bolt1.y = -1
         bolt2.x = -1
@@ -641,7 +566,7 @@ class Person(Thing):
         bolt1.emoji = ''
         bolt2.emoji = ''
         bolt3.emoji = ''
-        draw_grid(g)
+        self.game.draw_grid(g)
         for (key, value) in self.game.npc_locations.items():
             if key.name != 'blecks':
                 if (dest[0], dest[1]) == value or (dest2[0], dest2[1]) == value or (dest3[0], dest3[1]) == value:
@@ -653,14 +578,14 @@ class Person(Thing):
                             key.emoji = '😵'
                     if self not in key.enemies:
                             key.enemies.append(self)
-                    key.take_damage(self, 1, taser)
+                    key.take_damage(self, 1, self.game.taser)
         if (dest[0], dest[1]) == (self.game.blecks.x, self.game.blecks.y) or (dest2[0], dest2[1]) == (self.game.blecks.x, self.game.blecks.y) or (dest3[0], dest3[1]) == (self.game.blecks.x, self.game.blecks.y):
             self.game.messages.append(f"you get zapped!")
             self.game.blecks.is_stunned = True
             self.game.blecks.stun_timer = 4
-            self.game.blecks.take_damage(self, 1, taser)
+            self.game.blecks.take_damage(self, 1, self.game.taser)
                 
-        npc_turn()
+        self.game.npc_turn()
             
         
     def item_actions(self, item):
@@ -938,7 +863,7 @@ class Person(Thing):
         if self.hp <= 0:
             if self.name == 'blecks':
                 self.game.blecks.emoji = '💀'
-                draw_grid(g)
+                self.game.draw_grid(g)
                 print(self.game.messages)
                 input('\n you die..')
             else:
@@ -951,7 +876,7 @@ class Person(Thing):
                         Person._registry.remove(self)
                         break
         if dealer.name == 'blecks' and weapon.name != 'taser':
-            npc_turn()
+            self.game.npc_turn()
 
     def inventory_actions(self):
         i = 1
